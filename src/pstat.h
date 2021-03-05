@@ -1,3 +1,8 @@
+#ifndef __PSTAT_H__
+#define __PSTAT_H__
+
+#include "param.h"
+
 struct pstat {
   int inuse[NPROC]; // whether this slot of the process table is in use (1 or 0)
   int pid[NPROC]; // PID of each process
@@ -8,3 +13,4 @@ struct pstat {
   int switches[NPROC];  // total num times this process has been scheduled
 };
 
+#endif 
