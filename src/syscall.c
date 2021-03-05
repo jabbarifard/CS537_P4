@@ -104,6 +104,11 @@ extern int sys_wait(void);
 extern int sys_write(void);
 extern int sys_uptime(void);
 
+extern int sys_setslice(void);
+extern int sys_getslice(void);
+extern int sys_fork2(void);
+extern int sys_getpinfo(void);
+
 static int (*syscalls[])(void) = {
 [SYS_fork]    sys_fork,
 [SYS_exit]    sys_exit,
@@ -126,6 +131,11 @@ static int (*syscalls[])(void) = {
 [SYS_link]    sys_link,
 [SYS_mkdir]   sys_mkdir,
 [SYS_close]   sys_close,
+
+[SYS_setslice]  sys_setslice,
+[SYS_getslice]  sys_getslice,
+[SYS_fork2]     sys_fork2,
+[SYS_getpinfo]  sys_getpinfo,
 };
 
 void

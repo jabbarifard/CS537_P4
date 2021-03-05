@@ -121,6 +121,11 @@ int             wait(void);
 void            wakeup(void*);
 void            yield(void);
 
+int             setslice(int pid, int slice);
+int             getslice(int pid);
+int             fork2(int slice);
+int             getpinfo(struct pstat *);
+
 // swtch.S
 void            swtch(struct context**, struct context*);
 

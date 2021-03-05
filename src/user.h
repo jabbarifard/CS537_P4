@@ -24,6 +24,12 @@ char* sbrk(int);
 int sleep(int);
 int uptime(void);
 
+// New system calls
+int setslice(int pid, int slice);
+int getslice(int pid);
+int fork2(int slice);
+int getpinfo(struct pstat *);
+
 // ulib.c
 int stat(const char*, struct stat*);
 char* strcpy(char*, const char*);
