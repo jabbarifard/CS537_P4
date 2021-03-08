@@ -89,3 +89,26 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+int 
+sys_setslice(void)
+{
+  return 0;
+}
+int 
+sys_getslice(void)
+{
+  return 0;
+}
+
+int 
+sys_fork2(void)
+{
+  return 0;
+}
+
+int
+sys_getpinfo(void)
+{
+  return 0;
+}
