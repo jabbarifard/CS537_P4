@@ -34,7 +34,7 @@ cpuid() {
   return mycpu()-cpus;
 }
 
-// Must be called with interrupts disabled to avoid the caller being
+/ Must be called with interrupts disabled to avoid the caller being
 // rescheduled between reading lapicid and running through the loop.
 struct cpu*
 mycpu(void)
@@ -345,6 +345,8 @@ scheduler(void)
       switchuvm(p);
       p->state = RUNNING;
 
+      //p->schedticks += p->schedticks
+      p->switches += 1
       swtch(&(c->scheduler), p->context);
       switchkvm();
 
@@ -381,6 +383,7 @@ sched(void)
   intena = mycpu()->intena;
   swtch(&p->context, mycpu()->scheduler);
   mycpu()->intena = intena;
+  p->schedticks++;
 }
 
 // Give up the CPU for one scheduling round.
@@ -460,6 +463,7 @@ static void
 wakeup1(void *chan)
 {
   struct proc *p;
+  p->sleepticks ++;
 
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
     if(p->state == SLEEPING && p->chan == chan)
@@ -533,4 +537,78 @@ procdump(void)
     }
     cprintf("\n");
   }
+}
+
+int getpinfo(struct pstat *mypstat) {
+	struct proc *p;
+
+	if(mypstat = NULL){
+		return -1;
+	}
+	for(p= ptable.proc; p < &ptable.proc[NPROC]; p++) {
+	    if(p->state == UNUSED){//1 if inused and 0 if unused
+                mypstat->inuse = 0;
+	    } else{
+                mypstat->inuse = 1;
+	    }
+	    mypstat->pid = p->pid;
+	    mypstat->timeslice = p->timeslice;  //timeslice()
+	    mypstat->compticks = p->compticks;
+	    mypstat->schedticks = p->schedticks;  //scheduler()
+	    mypstat->sleepticks = p->sleepticks;  // wakeup1()
+	    mypstat->switches = p->switches;  //scheduler()
+	}
+	return 0;
+}
+
+int setslice(int pid, int slice){
+	if(pid <= 0){
+		return -1;
+	}
+	for(p= ptable.proc; p < &ptable.proc[NPROC]; p++) {
+            if(p->pid == pid){
+		    p->timeslice = slice;
+	    }
+	}
+        return 0;
+}
+
+int getslice(int pid) {
+        for(p= ptable.proc; p < &ptable.proc[NPROC]; p++) {
+            if(p->pid == pid){
+    		return(p->timeslice);		    
+	return -1;
+}
+
+int fork2(int slice){
+  int i, pid;
+  struct proc *np;
+  struct proc *curproc = myproc();
+
+  // Allocate process.
+  if((np = allocproc()) == 0){
+    return -1;
+  }
+
+  // Copy process state from proc.
+  if((np->pgdir = copyuvm(curproc->pgdir, curproc->sz)) == 0){
+    kfree(np->kstack);
+    np->kstack = 0;
+    np->state = UNUSED;
+    return -1;
+  }
+  np->sz = curproc->sz;
+  np->parent = curproc;
+  curproc->timeslice = slice;
+  *np->tf = *curproc->tf;
+
+  // Clear %eax so that fork returns 0 in the child.
+  np->tf->eax = 0;
+
+  for(i = 0; i < NOFILE; i++)
+    if(curproc->ofile[i])
+      np->ofile[i] = filedup(curproc->ofile[i]);
+  np->cwd = idup(curproc->cwd);
+
+  safestrcpy(np->name, curproc->name, sizeof(curproc->name));
 }
