@@ -8,6 +8,7 @@
 #include "spinlock.h"
 
 #include "pstat.h"
+#include <stddef.h>
 
 struct {
   struct spinlock lock;
@@ -34,7 +35,7 @@ cpuid() {
   return mycpu()-cpus;
 }
 
-/ Must be called with interrupts disabled to avoid the caller being
+// Must be called with interrupts disabled to avoid the caller being
 // rescheduled between reading lapicid and running through the loop.
 struct cpu*
 mycpu(void)
@@ -346,7 +347,7 @@ scheduler(void)
       p->state = RUNNING;
 
       //p->schedticks += p->schedticks
-      p->switches += 1
+      p->switches += 1;
       swtch(&(c->scheduler), p->context);
       switchkvm();
 
@@ -463,11 +464,15 @@ static void
 wakeup1(void *chan)
 {
   struct proc *p;
-  p->sleepticks ++;
 
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
-    if(p->state == SLEEPING && p->chan == chan)
+    if(p->state == SLEEPING && p->chan == chan){
       p->state = RUNNABLE;
+
+      // TODO:
+      // NOT SURE IF THIS IS CORRECT
+      p->sleepticks ++;
+    }
 }
 
 // Wake up all processes sleeping on chan.
@@ -542,42 +547,53 @@ procdump(void)
 int getpinfo(struct pstat *mypstat) {
 	struct proc *p;
 
-	if(mypstat = NULL){
+	if(mypstat == NULL){
 		return -1;
 	}
-	for(p= ptable.proc; p < &ptable.proc[NPROC]; p++) {
-	    if(p->state == UNUSED){//1 if inused and 0 if unused
-                mypstat->inuse = 0;
-	    } else{
-                mypstat->inuse = 1;
-	    }
-	    mypstat->pid = p->pid;
-	    mypstat->timeslice = p->timeslice;  //timeslice()
-	    mypstat->compticks = p->compticks;
-	    mypstat->schedticks = p->schedticks;  //scheduler()
-	    mypstat->sleepticks = p->sleepticks;  // wakeup1()
-	    mypstat->switches = p->switches;  //scheduler()
+
+	for(p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+    int procID = p->pid;
+    if(p->state == UNUSED){ //1 if inused and 0 if unused
+      mypstat->inuse[procID] = 0;
+    } else{
+      mypstat->inuse[procID] = 1;
+    }
+    mypstat->pid[procID] = p->pid;
+    mypstat->timeslice[procID] = p->timeslice;  //timeslice()
+    mypstat->compticks[procID] = p->compticks;
+    mypstat->schedticks[procID] = p->schedticks;  //scheduler()
+    mypstat->sleepticks[procID] = p->sleepticks;  // wakeup1()
+    mypstat->switches[procID] = p->switches;  //scheduler()
 	}
 	return 0;
 }
 
 int setslice(int pid, int slice){
+	struct proc *p;
+
 	if(pid <= 0){
 		return -1;
 	}
-	for(p= ptable.proc; p < &ptable.proc[NPROC]; p++) {
-            if(p->pid == pid){
-		    p->timeslice = slice;
-	    }
+
+	for(p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+    if(p->pid == pid){
+      p->timeslice = slice;
+    }
 	}
         return 0;
 }
 
 int getslice(int pid) {
-        for(p= ptable.proc; p < &ptable.proc[NPROC]; p++) {
-            if(p->pid == pid){
-    		return(p->timeslice);		    
-	return -1;
+  
+	struct proc *p;
+
+  for(p= ptable.proc; p < &ptable.proc[NPROC]; p++) {
+    if(p->pid == pid){
+      return(p->timeslice);		 
+    }
+  }  
+
+	return -1; 
 }
 
 int fork2(int slice){
@@ -587,6 +603,13 @@ int fork2(int slice){
 
   // Allocate process.
   if((np = allocproc()) == 0){
+    return -1;
+  }
+
+  // TODO: 
+  // Not sure what this does, but compiler needs PID to be used
+  pid = np->pid;
+  if(pid < 0){
     return -1;
   }
 
@@ -611,4 +634,8 @@ int fork2(int slice){
   np->cwd = idup(curproc->cwd);
 
   safestrcpy(np->name, curproc->name, sizeof(curproc->name));
+
+  // TODO: 
+  // Need to return something
+  return -1;
 }
