@@ -51,6 +51,12 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
+  int timeslice;               // number of base ticks this process can run in a timeslice
+  int compticks;               // number of compensation ticks this process has used
+  int schedticks;              // total number of timer ticks this process has been scheduled
+  int sleepticks;              // number of ticks during which this process was blocked
+  int switches;                // total num times this process has been scheduled
+  int priority;                // process priority
 };
 
 // Process memory is laid out contiguously, low addresses first:
