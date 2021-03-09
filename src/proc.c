@@ -540,23 +540,25 @@ procdump(void)
 }
 
 int getpinfo(struct pstat *mypstat) {
-	struct proc *p;
+	// struct proc *p;
+	// mypstat->inuse[i] = 0;
 
 	if(mypstat = NULL){
 		return -1;
 	}
-	for(p= ptable.proc; p < &ptable.proc[NPROC]; p++) {
+	for(int i = 0; i < NPROC; ++i) {
+            struct proc *p = &ptable.proc[i];
 	    if(p->state == UNUSED){//1 if inused and 0 if unused
                 mypstat->inuse = 0;
 	    } else{
                 mypstat->inuse = 1;
 	    }
 	    mypstat->pid = p->pid;
-	    mypstat->timeslice = p->timeslice;  //timeslice()
-	    mypstat->compticks = p->compticks;
-	    mypstat->schedticks = p->schedticks;  //scheduler()
-	    mypstat->sleepticks = p->sleepticks;  // wakeup1()
-	    mypstat->switches = p->switches;  //scheduler()
+	    mypstat->timeslice[i] = p->timeslice;  //timeslice()
+	    mypstat->compticks[i] = p->compticks;
+	    mypstat->schedticks[i] = p->schedticks;  //scheduler()
+	    mypstat->sleepticks[i] = p->sleepticks;  // wakeup1()
+	    mypstat->switches[i] = p->switches;  //scheduler()
 	}
 	return 0;
 }
@@ -568,6 +570,7 @@ int setslice(int pid, int slice){
 	for(p= ptable.proc; p < &ptable.proc[NPROC]; p++) {
             if(p->pid == pid){
 		    p->timeslice = slice;
+		    break;
 	    }
 	}
         return 0;
@@ -576,7 +579,9 @@ int setslice(int pid, int slice){
 int getslice(int pid) {
         for(p= ptable.proc; p < &ptable.proc[NPROC]; p++) {
             if(p->pid == pid){
-    		return(p->timeslice);		    
+    		return(p->timeslice);
+	    }	
+	}	    
 	return -1;
 }
 
@@ -599,7 +604,7 @@ int fork2(int slice){
   }
   np->sz = curproc->sz;
   np->parent = curproc;
-  curproc->timeslice = slice;
+  np->timeslice = slice;
   *np->tf = *curproc->tf;
 
   // Clear %eax so that fork returns 0 in the child.
