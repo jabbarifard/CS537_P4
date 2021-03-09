@@ -519,7 +519,7 @@ wakeup1(void *chan)
   // (e.g. checking whether chan == &ticks, 
   // and whether it is the right time to wake up, etc).
 
-  // struct proc *p = myproc();
+  struct proc *p = myproc();
   // if(p->state == SLEEPING && p->chan == chan) {
   //   p->sleepticks++;
   // }
