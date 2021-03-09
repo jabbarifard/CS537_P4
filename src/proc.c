@@ -15,40 +15,82 @@ struct {
   struct proc proc[NPROC];
 } ptable;
 
-// Reference to tail of LL queue
-static struct proc *tail;
+// Circular buffer
+int pQueue[64]; // 64 is max size of NPROC
+int pQueueMaxSize = 64;
+int consumeCount = 0;
+int produceCount = 0;
 
-// Insert proc at tail
-// static int insertProc(struct proc *p){
-//   p->next = tail;
-//   tail = p;
-//   return 1;
+int queueFull(){
+  if(produceCount - consumeCount == pQueueMaxSize){
+    return 1;
+  }
+  return 0;
+}
+
+int queueEmpty(){
+  if(produceCount == consumeCount){
+    return 1;
+  }
+  return 0;
+}
+
+int addProc(struct proc *p){
+  if(queueFull()){
+    return -1;
+  }
+  cprintf("ading proc with pid:%d\n", p->pid);
+  pQueue[produceCount % pQueueMaxSize] = p->pid;
+  produceCount++;
+  return 1;
+}
+
+// int removeProc(){
+//   if(queueEmpty()){
+//     return -1;
+//   }
+//   int returnPID;
+//   returnPID = pQueue[consumeCount % pQueueMaxSize];
+//   consumeCount++;
+//   return returnPID;
 // }
 
-// Grab and remove PID at head
-static int getHeadProc(){
-  struct proc *curr = tail;
-  struct proc *prev = curr;
 
-  // Find last node
-  while(curr->next != NULL){
-    prev = curr;
-    curr = curr->next;
+// Display all procs in RR queue
+void queueDump(){
+
+  int count;
+  for(count = consumeCount; count < produceCount; count++){
+    cprintf("Q: %d ", count);
+    cprintf("STORED pid: %d ", pQueue[count % pQueueMaxSize]);
+
+    cprintf("produce: %d ", produceCount);
+    cprintf("consume: %d ", consumeCount);
+
+    struct proc *p;
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+
+      if(p->pid == pQueue[count % pQueueMaxSize]){
+        
+        cprintf("Q: %d ", count);
+        cprintf("name: %s ", p->name);
+        cprintf("pid: %d ", p->pid);
+
+      }
+    }
+
+    
+
+
+    cprintf("\n");
+
   }
-
-  // Infinite loop, use only for debugging purposes
-  // cprintf("found proc: %s\n", curr->name);
-
-  // Remove last node;
-  prev->next = curr->next;
-  return curr->pid;
+  
 }
 
-// Create first node in LL (userinit)
-static void initProcQ(struct proc *p){
-  tail = p;
-  p->next = NULL;
-}
+// Debug vars
+int forkcount = 0;
+
 
 static struct proc *initproc;
 
@@ -127,6 +169,8 @@ found:
   p->state = EMBRYO;
   p->pid = nextpid++;
 
+  addProc(p);
+
   release(&ptable.lock);
 
   // Allocate kernel stack.
@@ -150,6 +194,8 @@ found:
   memset(p->context, 0, sizeof *p->context);
   p->context->eip = (uint)forkret;
 
+  // NEW: All procs start with timeslice of 1
+  p->timeslice = 1;
   return p;
 }
 
@@ -192,7 +238,7 @@ userinit(void)
 
   // NEW
   // ADD USERINIT TO PROCESS QUEUE
-  initProcQ(p);
+  addProc(p);
 
 }
 
@@ -220,48 +266,13 @@ growproc(int n)
 // Create a new process copying p as the parent.
 // Sets up stack to return as if from system call.
 // Caller must set state of returned proc to RUNNABLE.
+
+// NEW: Calls fork as form of fork2
 int
 fork(void)
 {
-  int i, pid;
-  struct proc *np;
   struct proc *curproc = myproc();
-
-  // Allocate process.
-  if((np = allocproc()) == 0){
-    return -1;
-  }
-
-  // Copy process state from proc.
-  if((np->pgdir = copyuvm(curproc->pgdir, curproc->sz)) == 0){
-    kfree(np->kstack);
-    np->kstack = 0;
-    np->state = UNUSED;
-    return -1;
-  }
-  np->sz = curproc->sz;
-  np->parent = curproc;
-  *np->tf = *curproc->tf;
-
-  // Clear %eax so that fork returns 0 in the child.
-  np->tf->eax = 0;
-
-  for(i = 0; i < NOFILE; i++)
-    if(curproc->ofile[i])
-      np->ofile[i] = filedup(curproc->ofile[i]);
-  np->cwd = idup(curproc->cwd);
-
-  safestrcpy(np->name, curproc->name, sizeof(curproc->name));
-
-  pid = np->pid;
-
-  acquire(&ptable.lock);
-
-  np->state = RUNNABLE;
-
-  release(&ptable.lock);
-
-  return pid;
+  return fork2(getslice(curproc->pid));
 }
 
 // Exit the current process.  Does not return.
@@ -375,12 +386,22 @@ scheduler(void)
 
     // NEW
     // GRAB PID OFF OF TAIL
-    int pidToRun = getHeadProc();
+    // int runPID = removeProc();
+
+    // acquire(&ptable.lock);
+    // for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    //   if(p->pid != runPID){
+    //     // cprintf("running proc: %d name: %s\n", p->pid, p->name);
+    //   }
+    // }
+    // release(&ptable.lock);
+
 
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->state != RUNNABLE && p->pid != pidToRun)
+      // if(p->state != RUNNABLE && p->pid != pidToRun)
+      if(p->state != RUNNABLE)
         continue;
 
       // Switch to chosen process.  It is the process's job
@@ -391,13 +412,11 @@ scheduler(void)
       p->state = RUNNING;
       
       // NEW
-
-      //p->schedticks += p->schedticks
+      p->schedticks += p->schedticks;
       p->switches += 1;
-      swtch(&(c->scheduler), p->context);
-
       // NEW END
 
+      swtch(&(c->scheduler), p->context);
       switchkvm();
 
       // Process is done running for now.
@@ -520,9 +539,9 @@ wakeup1(void *chan)
   // and whether it is the right time to wake up, etc).
 
   struct proc *p = myproc();
-  // if(p->state == SLEEPING && p->chan == chan) {
-  //   p->sleepticks++;
-  // }
+  if(p->state == SLEEPING && p->chan == chan) {
+    // p->sleepticks++;
+  } 
 
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if(p->state == SLEEPING && p->chan == chan){
@@ -696,7 +715,15 @@ int fork2(int slice){
 
   np->state = RUNNABLE;
 
+  // NEW
+  // procdump();
+  queueDump();
+  // NEW END
+  
   release(&ptable.lock);
+  
+  forkcount++;
+  cprintf("forks: %d\n", forkcount);
 
   return pid;
 }
