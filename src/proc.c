@@ -462,7 +462,7 @@ sleep(void *chan, struct spinlock *lk)
 static void
 wakeup1(void *chan)
 {
-  struct proc *p;
+  struct proc *p = myproc();
   p->sleepticks ++;
 
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
