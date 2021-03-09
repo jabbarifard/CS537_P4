@@ -15,6 +15,41 @@ struct {
   struct proc proc[NPROC];
 } ptable;
 
+// Reference to tail of LL queue
+static struct proc *tail;
+
+// Insert proc at tail
+// static int insertProc(struct proc *p){
+//   p->next = tail;
+//   tail = p;
+//   return 1;
+// }
+
+// Grab and remove PID at head
+static int getHeadProc(){
+  struct proc *curr = tail;
+  struct proc *prev = curr;
+
+  // Find last node
+  while(curr->next != NULL){
+    prev = curr;
+    curr = curr->next;
+  }
+
+  // Infinite loop, use only for debugging purposes
+  // cprintf("found proc: %s\n", curr->name);
+
+  // Remove last node;
+  prev->next = curr->next;
+  return curr->pid;
+}
+
+// Create first node in LL (userinit)
+static void initProcQ(struct proc *p){
+  tail = p;
+  p->next = NULL;
+}
+
 static struct proc *initproc;
 
 int nextpid = 1;
@@ -154,6 +189,11 @@ userinit(void)
   p->state = RUNNABLE;
 
   release(&ptable.lock);
+
+  // NEW
+  // ADD USERINIT TO PROCESS QUEUE
+  initProcQ(p);
+
 }
 
 // Grow current process's memory by n bytes.
@@ -333,10 +373,14 @@ scheduler(void)
     // Enable interrupts on this processor.
     sti();
 
+    // NEW
+    // GRAB PID OFF OF TAIL
+    int pidToRun = getHeadProc();
+
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->state != RUNNABLE)
+      if(p->state != RUNNABLE && p->pid != pidToRun)
         continue;
 
       // Switch to chosen process.  It is the process's job
@@ -345,10 +389,15 @@ scheduler(void)
       c->proc = p;
       switchuvm(p);
       p->state = RUNNING;
+      
+      // NEW
 
       //p->schedticks += p->schedticks
       p->switches += 1;
       swtch(&(c->scheduler), p->context);
+
+      // NEW END
+
       switchkvm();
 
       // Process is done running for now.
@@ -464,13 +513,20 @@ static void
 wakeup1(void *chan)
 {
   
-  struct proc *p = myproc();
-  // p->sleepticks++;
+  // To address this problem, you should change wakeup1() 
+  // in proc.c to have some additional 
+  // condition checking to avoid falsely waking up the sleeping process 
+  // (e.g. checking whether chan == &ticks, 
+  // and whether it is the right time to wake up, etc).
+
+  // struct proc *p = myproc();
+  // if(p->state == SLEEPING && p->chan == chan) {
+  //   p->sleepticks++;
+  // }
 
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if(p->state == SLEEPING && p->chan == chan){
       p->state = RUNNABLE;
-      
     }
   }
 

@@ -51,6 +51,8 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
+
+  struct proc *next;
   int timeslice;               // number of base ticks this process can run in a timeslice
   int compticks;               // number of compensation ticks this process has used
   int schedticks;              // total number of timer ticks this process has been scheduled
