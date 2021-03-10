@@ -312,6 +312,7 @@ exit(void)
   iput(curproc->cwd);
   end_op();
   curproc->cwd = 0;
+
   // remove the proc here
   removeProc();
 
@@ -438,12 +439,30 @@ scheduler(void)
         continue;
       }
 
+      // remove zombies
+      if(p->state == ZOMBIE){
+        if(p->pid == peekProc()){
+          removeProc();
+          runPID = peekProc();
+        }
+        continue;
+      }
+
+      if(p->ticksUsed > p->timeslice){
+        continue;
+        p->ticksUsed = 0;
+        removeProc();
+        runPID = peekProc();
+      }
+
+
 
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
       // before jumping back to us.
+
       // remove the process here
-      removeProc();
+      // removeProc();
       c->proc = p;
       switchuvm(p);
       p->state = RUNNING;
@@ -462,8 +481,9 @@ scheduler(void)
       // Process is done running for now.
       // It should have changed its p->state before coming back.
       c->proc = 0;
+
       // add the current process back here
-      addProc(p);
+      // addProc(p);
     }
     release(&ptable.lock);
 
