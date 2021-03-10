@@ -75,17 +75,19 @@ void queueDump(){
     cprintf("Q: %d ", count);
     cprintf("STORED pid: %d ", pQueue[count % pQueueMaxSize]);
 
-    cprintf("produce: %d ", produceCount);
-    cprintf("consume: %d ", consumeCount);
+    // cprintf("produce: %d ", produceCount);
+    // cprintf("consume: %d ", consumeCount);
 
     struct proc *p;
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
 
       if(p->pid == pQueue[count % pQueueMaxSize]){
         
-        cprintf("Q: %d ", count);
         cprintf("name: %s ", p->name);
         cprintf("pid: %d ", p->pid);
+
+        cprintf("TS: %d ", p->timeslice);
+        cprintf("TU: %d ", p->ticksUsed);
 
       }
     }
@@ -198,8 +200,15 @@ found:
 
   // NEW: All procs start with timeslice of 1
   addProc(p);
-  p->ticksUsed = 0;
+
+  // Default RR values
   p->timeslice = 1;
+  p->compticks = 0;
+  p->schedticks = 0;
+  p->sleepticks = 0;
+  p->switches = 0;
+  p->ticksUsed = 0;
+
   return p;
 }
 
@@ -392,13 +401,8 @@ scheduler(void)
     // GRAB PID OFF OF TAIL
     // int runPID = removeProc();
 
-    // acquire(&ptable.lock);
-    // for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-    //   if(p->pid != runPID){
-    //     // cprintf("running proc: %d name: %s\n", p->pid, p->name);
-    //   }
-    // }
-    // release(&ptable.lock);
+  // queueDump();
+  // procdump();
 
 
     // Loop over process table looking for process to run.
@@ -488,7 +492,7 @@ sched(void)
   intena = mycpu()->intena;
   swtch(&p->context, mycpu()->scheduler);
   mycpu()->intena = intena;
-  p->schedticks++;
+  // p->schedticks++;
 }
 
 // Give up the CPU for one scheduling round.
@@ -548,6 +552,9 @@ sleep(void *chan, struct spinlock *lk)
   // Go to sleep.
   p->chan = chan;
   p->state = SLEEPING;
+
+  // NEW!
+  p->sleepticks++;
 
   sched();
 
@@ -648,7 +655,7 @@ procdump(void)
       state = states[p->state];
     else
       state = "???";
-    cprintf("%d %s %s", p->pid, state, p->name);
+    cprintf("%d %s %s TIMESLICE=%d", p->pid, state, p->name, p->timeslice);
     if(p->state == SLEEPING){
       getcallerpcs((uint*)p->context->ebp+2, pc);
       for(i=0; i<10 && pc[i] != 0; i++)
@@ -659,27 +666,33 @@ procdump(void)
 }
 
 int getpinfo(struct pstat *mypstat) {
-	// struct proc *p;
+	struct proc *p;
 	// mypstat->inuse[i] = 0;
 
 	if(mypstat == NULL){
 		return -1;
 	}
 
-	for(int i = 0; i < NPROC; ++i) {
-    struct proc *p = &ptable.proc[i];
-    if(p->state == UNUSED){ //1 if inused and 0 if unused
-      mypstat->inuse[i] = 0;
-    } else{
-      mypstat->inuse[i] = 1;
-    }
+  acquire(&ptable.lock);
+  int i = 0;
+	for(p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+
     mypstat->pid[i] = p->pid;
     mypstat->timeslice[i] = p->timeslice;  //timeslice()
     mypstat->compticks[i] = p->compticks;
     mypstat->schedticks[i] = p->schedticks;  //scheduler()
     mypstat->sleepticks[i] = p->sleepticks;  // wakeup1()
     mypstat->switches[i] = p->switches;  //scheduler()
+    
+    if(p->state == UNUSED){ //1 if inused and 0 if unused
+      mypstat->inuse[i] = 0;
+    } else{
+      mypstat->inuse[i] = 1;
+    }
+
+    i++;
 	}
+  release(&ptable.lock);
 
 	return 0;
 }
@@ -736,7 +749,7 @@ int fork2(int slice){
   np->parent = curproc;
   *np->tf = *curproc->tf;
 
-  np->timeslice = slice;  // Inheret parent timeslice
+  setslice(np->pid, slice); // Set timeslice of child to param
 
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0;
@@ -760,6 +773,7 @@ int fork2(int slice){
   // Debug statements
   queueDump();
   procdump();
+  cprintf("\n");
   // forkcount++;
   // cprintf("forks: %d\n", forkcount);
 

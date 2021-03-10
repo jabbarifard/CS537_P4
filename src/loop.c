@@ -22,9 +22,9 @@ int main(int argc, char *argv[])
     exit();
   }
 
-  printf(1, "starting sleep\n");
+  // printf(1, "starting sleep\n");
   loop(atoi(argv[1]));
-  printf(1, "done sleep\n");
+  // printf(1, "done sleep\n");
 
   exit();
 }

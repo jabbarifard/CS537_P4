@@ -93,22 +93,57 @@ sys_uptime(void)
 int 
 sys_setslice(void)
 {
-  return 0;
+  int pid, slice;
+  if(argint(0, &pid) < 0 || argint(1, &slice) < 0) {
+    return -1;
+  }
+  
+  // Syscall
+  return setslice(pid, slice);
 }
+
 int 
 sys_getslice(void)
 {
-  return 0;
+  int pid;
+  if(argint(0, &pid) < 0) {
+    return -1;
+  }
+  
+  // Syscall
+  return getslice(pid);
 }
 
 int 
 sys_fork2(void)
 {
-  return 0;
+  int ticks;
+  if(argint(0, &ticks) < 0) {
+    return -1;
+  }
+
+  // Check ticks not negative
+  if (ticks < 0) {
+    return -1;
+  }
+
+  // Syscall
+  return fork2(ticks);
 }
 
 int
 sys_getpinfo(void)
 {
-  return 0;
+  struct pstat *ps;
+  if(argptr(0, (void*)&ps, sizeof(*ps)) < 0) {
+    return -1;
+  }
+
+  // Check pinfo is valid
+  if (ps == 0){
+    return -1;
+  }
+
+  // Syscall
+  return getpinfo(ps);
 }
