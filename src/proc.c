@@ -16,8 +16,8 @@ struct {
 } ptable;
 
 // Circular buffer
-int pQueue[64]; // 64 is max size of NPROC
-int pQueueMaxSize = 64;
+int pQueue[NPROC]; // 64 is max size of NPROC
+int pQueueMaxSize = NPROC;
 int consumeCount = 0;
 int produceCount = 0;
 
@@ -45,20 +45,18 @@ int addProc(struct proc *p){
   return 1;
 }
 
-// int removeProc(){
-//   if(queueEmpty()){
-//     return -1;
-//   }
-//   int returnPID;
-//   returnPID = pQueue[consumeCount % pQueueMaxSize];
-//   consumeCount++;
-//   return returnPID;
-// }
-
+int removeProc(){
+  if(queueEmpty()){
+    return -1;
+  }
+  int returnPID;
+  returnPID = pQueue[consumeCount % pQueueMaxSize];
+  consumeCount++;
+  return returnPID;
+}
 
 // Display all procs in RR queue
 void queueDump(){
-
   int count;
   for(count = consumeCount; count < produceCount; count++){
     cprintf("Q: %d ", count);
@@ -78,19 +76,12 @@ void queueDump(){
 
       }
     }
-
-    
-
-
     cprintf("\n");
-
   }
-  
 }
 
 // Debug vars
 int forkcount = 0;
-
 
 static struct proc *initproc;
 
@@ -195,6 +186,7 @@ found:
   p->context->eip = (uint)forkret;
 
   // NEW: All procs start with timeslice of 1
+  addProc(p);
   p->timeslice = 1;
   return p;
 }
@@ -402,6 +394,10 @@ scheduler(void)
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
       // if(p->state != RUNNABLE && p->pid != pidToRun)
       if(p->state != RUNNABLE)
+        continue;
+
+      int runPID = removeProc();
+      if(p->pid == runPID)
         continue;
 
       // Switch to chosen process.  It is the process's job
@@ -696,8 +692,9 @@ int fork2(int slice){
   }
   np->sz = curproc->sz;
   np->parent = curproc;
-  np->timeslice = slice;
   *np->tf = *curproc->tf;
+
+  np->timeslice = slice;  // Inheret parent timeslice
 
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0;
@@ -712,16 +709,14 @@ int fork2(int slice){
   pid = np->pid;
 
   acquire(&ptable.lock);
-
   np->state = RUNNABLE;
-
   // NEW
   // procdump();
-  queueDump();
   // NEW END
-  
   release(&ptable.lock);
   
+  // Debug statements
+  queueDump();
   forkcount++;
   cprintf("forks: %d\n", forkcount);
 
