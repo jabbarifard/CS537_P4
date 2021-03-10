@@ -34,12 +34,12 @@ schedtest(int sliceA, char * sleepA, int sliceB, char * sleepB, int sleepParent)
     int i;
     for (i = 0; i < NPROC; i++){
         
-        //if(test->inuse[i] == 0 || test->inuse[i] == 1){
-        printf(1,"%d\t PID: %d\t TS: %d\t CT: %d\t ScT: %d\t SlT: %d\t Sw: %d\t \n", 
-        test->inuse[i], test->pid[i], 
-        test->timeslice[i], test->compticks[i], 
-        test->schedticks[i], test->sleepticks[i], test->switches[i]);
-        //}
+        if(test->inuse[i] == 1){
+            printf(1,"%d\t PID: %d\t TS: %d\t CT: %d\t ScT: %d\t SlT: %d\t Sw: %d\t \n", 
+            test->inuse[i], test->pid[i], 
+            test->timeslice[i], test->compticks[i], 
+            test->schedticks[i], test->sleepticks[i], test->switches[i]);
+        }
     }
 
     wait();

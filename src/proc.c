@@ -398,64 +398,29 @@ scheduler(void)
     // Enable interrupts on this processor.
     sti();
 
-    // NEW
-    // GRAB PID OFF OF TAIL
-    // int runPID = removeProc;
-
-  // queueDump();
-  // procdump();
-
-
+    // queueDump();
+    // procdump();
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
 
+    // NEW
+    // GRAB PID OFF OF TAIL
     int runPID = peekProc();
-
-    // Preliminary checks
-    
-    // int schedule = 0;
-    // for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-    //   runPID = peekProc();
-    //   if(schedule == 0){
-    //     if(p->state != RUNNABLE && p->pid != runPID){
-
-    //       // Check if timeslice is used up
-    //       if(p->ticksUsed > p->timeslice){
-    //         // move on to next proc
-    //         // add current proc to tail
-    //         addProc(p);
-    //         removeProc();
-    //       } else {
-    //         // cprintf("now scheduling: %d", runPID);
-    //         schedule = 1;
-    //       }
-    //     }
-    //   } 
-    // }
-    // runPID = peekProc();
+    runPID = runPID;
 
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      // if(p->state != RUNNABLE){
       if(p->state != RUNNABLE && p->pid != runPID){
         continue;
       }
 
-      // remove zombies
-      if(p->state == ZOMBIE){
-        if(p->pid == peekProc()){
-          removeProc();
-          runPID = peekProc();
-        }
-        continue;
-      }
-
-      if(p->ticksUsed > p->timeslice){
-        continue;
-        p->ticksUsed = 0;
-        removeProc();
-        runPID = peekProc();
-      }
-
-
+      // if(p->ticksUsed == p->timeslice){
+      //   p->ticksUsed = 0;
+      //   removeProc();
+      //   addProc(p);
+      //   runPID = peekProc();
+      //   continue;
+      // }
 
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
@@ -467,12 +432,14 @@ scheduler(void)
       switchuvm(p);
       p->state = RUNNING;
       
+      // cprintf("PID: %d\t", p->pid);
+      // cprintf("Ticks used: %d\t", p->ticksUsed);
+      // cprintf("Ticks slice: %d\n", p->timeslice);
+
       // NEW
-      // p->ticksUsed++;
       p->switches++;
-      p->schedticks++;
       p->ticksUsed++;
-      // p->schedticks += p->schedticks;
+      p->schedticks++;
       // NEW END
 
       swtch(&(c->scheduler), p->context);
@@ -523,6 +490,18 @@ yield(void)
 {
   acquire(&ptable.lock);  //DOC: yieldlock
   myproc()->state = RUNNABLE;
+
+  struct proc *p = myproc();
+  if(p->ticksUsed == p->timeslice){
+    p->ticksUsed = 0;
+    removeProc();
+    addProc(p);
+  } else {
+    // p->ticksUsed++;
+    // p->schedticks++;
+    // p->switches++;
+  }
+
   sched();
   release(&ptable.lock);
 }
@@ -797,9 +776,9 @@ int fork2(int slice){
   release(&ptable.lock);
   
   // Debug statements
-  queueDump();
-  procdump();
-  cprintf("\n");
+  // queueDump();
+  // procdump();
+  // cprintf("\n");
   // forkcount++;
   // cprintf("forks: %d\n", forkcount);
 
