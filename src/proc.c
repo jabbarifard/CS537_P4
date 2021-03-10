@@ -199,9 +199,7 @@ found:
   p->context->eip = (uint)forkret;
 
   // NEW: All procs start with timeslice of 1
-  addProc(p);
-
-  // Default RR values
+  // addProc(p); We cannot addProc here because the state is  EMBRYO
   p->timeslice = 1;
   p->compticks = 0;
   p->schedticks = 0;
@@ -246,6 +244,8 @@ userinit(void)
   acquire(&ptable.lock);
 
   p->state = RUNNABLE;
+  // add the process here
+  addProc(p);
 
   release(&ptable.lock);
 
@@ -284,7 +284,9 @@ growproc(int n)
 int
 fork(void)
 {
+  // add the process here, check if it's runnable
   struct proc *curproc = myproc();
+  addProc(curproc);
   return fork2(getslice(curproc->pid));
 }
 
@@ -314,6 +316,8 @@ exit(void)
   iput(curproc->cwd);
   end_op();
   curproc->cwd = 0;
+  // remove the proc here
+  removeProc();
 
   acquire(&ptable.lock);
   // Parent might be sleeping in wait().
@@ -441,9 +445,8 @@ scheduler(void)
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
       // before jumping back to us.
-
-
-
+      // remove the process here
+      removeProc(p);
       c->proc = p;
       switchuvm(p);
       p->state = RUNNING;
@@ -462,6 +465,8 @@ scheduler(void)
       // Process is done running for now.
       // It should have changed its p->state before coming back.
       c->proc = 0;
+      // add the current process back here
+      addProc(p);
     }
     release(&ptable.lock);
 
@@ -552,6 +557,8 @@ sleep(void *chan, struct spinlock *lk)
   // Go to sleep.
   p->chan = chan;
   p->state = SLEEPING;
+  // remove the process here
+  removeProc(p);
 
   // NEW!
   p->sleepticks++;
@@ -584,13 +591,15 @@ wakeup1(void *chan)
   // and whether it is the right time to wake up, etc).
 
   struct proc *p = myproc();
-  if(p->state == SLEEPING && p->chan == chan) {
+  // if(p->state == SLEEPING && p->chan == chan) {
     // p->sleepticks++;
-  } 
+  // } 
 
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if(p->state == SLEEPING && p->chan == chan){
       p->state = RUNNABLE;
+      // add the process here
+      addProc(p);
     }
   }
 
