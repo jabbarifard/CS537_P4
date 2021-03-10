@@ -199,7 +199,7 @@ found:
   p->context->eip = (uint)forkret;
 
   // NEW: All procs start with timeslice of 1
-  // addProc(p); We cannot addProc here because the state is  EMBRYO
+  // addProc; We cannot addProc here because the state is  EMBRYO
   p->timeslice = 1;
   p->compticks = 0;
   p->schedticks = 0;
@@ -248,10 +248,6 @@ userinit(void)
   addProc(p);
 
   release(&ptable.lock);
-
-  // NEW
-  // ADD USERINIT TO PROCESS QUEUE
-  addProc(p);
 
 }
 
@@ -403,7 +399,7 @@ scheduler(void)
 
     // NEW
     // GRAB PID OFF OF TAIL
-    // int runPID = removeProc();
+    // int runPID = removeProc;
 
   // queueDump();
   // procdump();
@@ -413,28 +409,29 @@ scheduler(void)
     acquire(&ptable.lock);
 
     int runPID = peekProc();
-    int schedule = 0;
 
-    // // Preliminary checks
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      runPID = peekProc();
-      if(schedule == 0){
-        if(p->state != RUNNABLE && p->pid != runPID){
+    // Preliminary checks
+    
+    // int schedule = 0;
+    // for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    //   runPID = peekProc();
+    //   if(schedule == 0){
+    //     if(p->state != RUNNABLE && p->pid != runPID){
 
-          // Check if timeslice is used up
-          if(p->ticksUsed > p->timeslice){
-            // move on to next proc
-            // add current proc to tail
-            addProc(p);
-            removeProc();
-          } else {
-            // cprintf("now scheduling: %d", runPID);
-            schedule = 1;
-          }
-        }
-      } 
-    }
-    runPID = peekProc();
+    //       // Check if timeslice is used up
+    //       if(p->ticksUsed > p->timeslice){
+    //         // move on to next proc
+    //         // add current proc to tail
+    //         addProc(p);
+    //         removeProc();
+    //       } else {
+    //         // cprintf("now scheduling: %d", runPID);
+    //         schedule = 1;
+    //       }
+    //     }
+    //   } 
+    // }
+    // runPID = peekProc();
 
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
       if(p->state != RUNNABLE && p->pid != runPID){
@@ -446,7 +443,7 @@ scheduler(void)
       // to release ptable.lock and then reacquire it
       // before jumping back to us.
       // remove the process here
-      removeProc(p);
+      removeProc();
       c->proc = p;
       switchuvm(p);
       p->state = RUNNING;
@@ -558,7 +555,7 @@ sleep(void *chan, struct spinlock *lk)
   p->chan = chan;
   p->state = SLEEPING;
   // remove the process here
-  removeProc(p);
+  removeProc();
 
   // NEW!
   p->sleepticks++;

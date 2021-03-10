@@ -20,26 +20,26 @@ schedtest(int sliceA, char * sleepA, int sliceB, char * sleepB, int sleepParent)
         if(pid2 == 0) {
             char *argv1[] = { "exec", sleepA };
             exec("loop", argv1);
-        } 
-
-        wait();
+        } else {
+            wait();
+        }
 
         pid3 = fork2(sliceB);
         if(pid3 == 0) {
             char *argv1[] = { "exec", sleepB };
             exec("loop", argv1);
-        } 
+        } else {
+            wait();
+        }
 
-        wait();
+    } else {       
 
-    } else {        
         sleep(sleepParent);
 
         struct pstat * test = malloc(sizeof(struct pstat));
         getpinfo(test);
 
         printf(1,"DUMPING PSTAT\n"); 
-
    
         int i;
         for (i = 0; i < NPROC; i++){
@@ -53,6 +53,7 @@ schedtest(int sliceA, char * sleepA, int sliceB, char * sleepB, int sleepParent)
         }
 
         free(test);
+
         wait();
         wait();
 
