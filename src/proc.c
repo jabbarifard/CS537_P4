@@ -55,6 +55,15 @@ int removeProc(){
   return returnPID;
 }
 
+int peekProc(){
+  if(queueEmpty()){
+    return -1;
+  }
+  int returnPID;
+  returnPID = pQueue[consumeCount % pQueueMaxSize];
+  return returnPID;
+}
+
 // Display all procs in RR queue
 void queueDump(){
   int count;
@@ -159,8 +168,6 @@ allocproc(void)
 found:
   p->state = EMBRYO;
   p->pid = nextpid++;
-
-  addProc(p);
 
   release(&ptable.lock);
 
@@ -293,6 +300,8 @@ exit(void)
   end_op();
   curproc->cwd = 0;
 
+  removeProc();
+
   acquire(&ptable.lock);
 
   // Parent might be sleeping in wait().
@@ -388,17 +397,17 @@ scheduler(void)
     // }
     // release(&ptable.lock);
 
+    int runPID = peekProc();
 
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      // if(p->state != RUNNABLE && p->pid != pidToRun)
-      if(p->state != RUNNABLE)
+      if(p->state != RUNNABLE && p->pid != runPID)
         continue;
 
-      int runPID = removeProc();
-      if(p->pid == runPID)
-        continue;
+
+      // if(p->pid == runPID)
+      //   continue;
 
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
