@@ -9,12 +9,14 @@
 
 #include "pstat.h"
 
+
 struct {
   struct spinlock lock;
   struct proc proc[NPROC];
 } ptable;
 
 static struct proc *initproc;
+// static struct  Node *head; // proc linked list
 
 int nextpid = 1;
 extern void forkret(void);
@@ -204,6 +206,8 @@ fork(void)
 
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0;
+
+  //append to the tail of the linked list, the child process
 
   for(i = 0; i < NOFILE; i++)
     if(curproc->ofile[i])
@@ -462,8 +466,8 @@ sleep(void *chan, struct spinlock *lk)
 static void
 wakeup1(void *chan)
 {
-  struct proc *p = myproc();
-  p->sleepticks ++;
+  // struct proc *p;
+  // p->sleepticks ++;
 
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
     if(p->state == SLEEPING && p->chan == chan)
