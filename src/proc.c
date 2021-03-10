@@ -22,7 +22,7 @@ int consumeCount = 0;
 int produceCount = 0;
 
 int queueFull(){
-  if(produceCount - consumeCount == pQueueMaxSize){
+  if(produceCount - consumeCount == NPROC - 1){
     return 1;
   }
   return 0;
@@ -35,26 +35,30 @@ int queueEmpty(){
   return 0;
 }
 
+// Add in a proc at tail
 int addProc(struct proc *p){
   if(queueFull()){
     return -1;
   }
-  cprintf("ading proc with pid:%d\n", p->pid);
+  // cprintf("ading proc with pid:%d\n", p->pid);
   pQueue[produceCount % pQueueMaxSize] = p->pid;
   produceCount++;
   return 1;
 }
 
+// Remove proc at head
 int removeProc(){
   if(queueEmpty()){
     return -1;
   }
   int returnPID;
   returnPID = pQueue[consumeCount % pQueueMaxSize];
+  // cprintf("removing proc with pid:%d\n", returnPID);
   consumeCount++;
   return returnPID;
 }
 
+// Peek at proc at head
 int peekProc(){
   if(queueEmpty()){
     return -1;
@@ -194,6 +198,7 @@ found:
 
   // NEW: All procs start with timeslice of 1
   addProc(p);
+  p->ticksUsed = 0;
   p->timeslice = 1;
   return p;
 }
@@ -280,6 +285,7 @@ fork(void)
 void
 exit(void)
 {
+
   struct proc *curproc = myproc();
   struct proc *p;
   int fd;
@@ -300,10 +306,7 @@ exit(void)
   end_op();
   curproc->cwd = 0;
 
-  removeProc();
-
   acquire(&ptable.lock);
-
   // Parent might be sleeping in wait().
   wakeup1(curproc->parent);
 
@@ -397,28 +400,56 @@ scheduler(void)
     // }
     // release(&ptable.lock);
 
-    int runPID = peekProc();
 
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
+
+    int runPID = peekProc();
+    int schedule = 0;
+
+    // // Preliminary checks
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->state != RUNNABLE && p->pid != runPID)
+      runPID = peekProc();
+      if(schedule == 0){
+        if(p->state != RUNNABLE && p->pid != runPID){
+
+          // Check if timeslice is used up
+          if(p->ticksUsed > p->timeslice){
+            // move on to next proc
+            // add current proc to tail
+            addProc(p);
+            removeProc();
+          } else {
+            // cprintf("now scheduling: %d", runPID);
+            schedule = 1;
+          }
+        }
+      } 
+    }
+    runPID = peekProc();
+
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      if(p->state != RUNNABLE && p->pid != runPID){
         continue;
+      }
 
-
-      // if(p->pid == runPID)
-      //   continue;
 
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
       // before jumping back to us.
+
+
+
       c->proc = p;
       switchuvm(p);
       p->state = RUNNING;
       
       // NEW
-      p->schedticks += p->schedticks;
-      p->switches += 1;
+      // p->ticksUsed++;
+      p->switches++;
+      p->schedticks++;
+      p->ticksUsed++;
+      // p->schedticks += p->schedticks;
       // NEW END
 
       swtch(&(c->scheduler), p->context);
@@ -537,6 +568,8 @@ static void
 wakeup1(void *chan)
 {
   
+  removeProc();
+
   // To address this problem, you should change wakeup1() 
   // in proc.c to have some additional 
   // condition checking to avoid falsely waking up the sleeping process 
@@ -726,8 +759,9 @@ int fork2(int slice){
   
   // Debug statements
   queueDump();
-  forkcount++;
-  cprintf("forks: %d\n", forkcount);
+  procdump();
+  // forkcount++;
+  // cprintf("forks: %d\n", forkcount);
 
   return pid;
 }
