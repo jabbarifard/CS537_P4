@@ -13,90 +13,56 @@
 struct {
   struct spinlock lock;
   struct proc proc[NPROC];
+
+  // NEW: Pointers to linked list
+  struct proc *head;
+  struct proc *tail;
 } ptable;
 
-// Circular buffer
-int pQueue[NPROC]; // 64 is max size of NPROC
-int pQueueMaxSize = NPROC;
-int consumeCount = 0;
-int produceCount = 0;
+void addProc(struct proc *p){
+  // Add proc p to head
+  p->next = ptable.head;
+  ptable.head = p;
 
-int queueFull(){
-  if(produceCount - consumeCount == NPROC - 1){
-    return 1;
+  // If empty, tail points to the same proc as head
+  if(ptable.tail == NULL){
+    ptable.tail = p;
   }
-  return 0;
 }
 
-int queueEmpty(){
-  if(produceCount == consumeCount){
-    return 1;
-  }
-  return 0;
-}
-
-// Add in a proc at tail
-int addProc(struct proc *p){
-  if(queueFull()){
-    return -1;
-  }
-  // cprintf("ading proc with pid:%d\n", p->pid);
-  pQueue[produceCount % pQueueMaxSize] = p->pid;
-  produceCount++;
-  return 1;
-}
-
-// Remove proc at head
-int removeProc(){
-  if(queueEmpty()){
-    return -1;
-  }
-  int returnPID;
-  returnPID = pQueue[consumeCount % pQueueMaxSize];
-  // cprintf("removing proc with pid:%d\n", returnPID);
-  consumeCount++;
-  return returnPID;
-}
-
-// Peek at proc at head
-int peekProc(){
-  if(queueEmpty()){
-    return -1;
-  }
-  int returnPID;
-  returnPID = pQueue[consumeCount % pQueueMaxSize];
-  return returnPID;
-}
-
-// Display all procs in RR queue
-void queueDump(){
-  int count;
-  for(count = consumeCount; count < produceCount; count++){
-    cprintf("Q: %d ", count);
-    cprintf("STORED pid: %d ", pQueue[count % pQueueMaxSize]);
-
-    // cprintf("produce: %d ", produceCount);
-    // cprintf("consume: %d ", consumeCount);
-
-    struct proc *p;
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-
-      if(p->pid == pQueue[count % pQueueMaxSize]){
-        
-        cprintf("name: %s ", p->name);
-        cprintf("pid: %d ", p->pid);
-
-        cprintf("TS: %d ", p->timeslice);
-        cprintf("TU: %d ", p->ticksUsed);
-
-      }
+void removeProc(void){
+  struct proc *curr = ptable.head;
+  struct proc *prev = curr;
+  if(prev == NULL){
+    // Already empty, do nothing
+  } else if(prev->next == NULL){
+    ptable.head = NULL;
+    ptable.tail = NULL;
+  } else {
+    // Find last node
+    while(prev->next->next != NULL) {
+      prev = prev->next;
     }
-    cprintf("\n");
+    // Remove last node and update tail
+    prev->next = NULL;
+    ptable.tail = prev;
   }
 }
 
-// Debug vars
-int forkcount = 0;
+void queueDump(void){
+  struct proc *curr = ptable.head;
+  int position = 0;
+
+  cprintf("HEAD: PID: %d\t Name: %s\n", ptable.head->pid, ptable.head->name);
+  cprintf("TAIL: PID: %d\t Name: %s\n", ptable.tail->pid, ptable.tail->name);
+
+  while(curr != NULL){
+    cprintf("Q: %d\t PID: %d\t Name: %s\n", position, curr->pid, curr->name);
+    position++;
+    curr = curr->next;
+  }
+}
+
 
 static struct proc *initproc;
 
@@ -105,6 +71,23 @@ extern void forkret(void);
 extern void trapret(void);
 
 static void wakeup1(void *chan);
+
+// Iterate through ptable and update ticks accordingly
+void updateticks(void){
+
+  struct proc *p;
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+
+    if(p->state == RUNNING){
+
+    }
+    if(p->state == SLEEPING){
+      // p->sleepticks++;
+      // p->compLeft++;
+    }
+    
+  }
+}
 
 void
 pinit(void)
@@ -175,6 +158,15 @@ found:
   p->state = EMBRYO;
   p->pid = nextpid++;
 
+  // NEW: All procs start with timeslice of 1
+  p->timeslice = 1;
+  p->schedticks = 0;
+  p->compticks = 0;
+  p->sleepticks = 0;
+  p->switches = 0;
+  p->ticksUsed = 0;
+  p->compLeft = 0;
+
   release(&ptable.lock);
 
   // Allocate kernel stack.
@@ -198,14 +190,8 @@ found:
   memset(p->context, 0, sizeof *p->context);
   p->context->eip = (uint)forkret;
 
-  // NEW: All procs start with timeslice of 1
+
   // addProc; We cannot addProc here because the state is  EMBRYO
-  p->timeslice = 1;
-  p->compticks = 0;
-  p->schedticks = 0;
-  p->sleepticks = 0;
-  p->switches = 0;
-  p->ticksUsed = 0;
 
   return p;
 }
@@ -244,11 +230,11 @@ userinit(void)
   acquire(&ptable.lock);
 
   p->state = RUNNABLE;
-  // add the process here
+
+  // Add userinit to linked list
   addProc(p);
 
   release(&ptable.lock);
-
 }
 
 // Grow current process's memory by n bytes.
@@ -275,15 +261,12 @@ growproc(int n)
 // Create a new process copying p as the parent.
 // Sets up stack to return as if from system call.
 // Caller must set state of returned proc to RUNNABLE.
-
-// NEW: Calls fork as form of fork2
 int
 fork(void)
 {
-  // add the process here, check if it's runnable
+  // Call fork2, but with current timeslice
   struct proc *curproc = myproc();
-  addProc(curproc);
-  return fork2(getslice(curproc->pid));
+  return fork2(curproc->timeslice);
 }
 
 // Exit the current process.  Does not return.
@@ -292,7 +275,6 @@ fork(void)
 void
 exit(void)
 {
-
   struct proc *curproc = myproc();
   struct proc *p;
   int fd;
@@ -313,10 +295,11 @@ exit(void)
   end_op();
   curproc->cwd = 0;
 
-  // remove the proc here
+  acquire(&ptable.lock);
+
+  // Remove current proc from queue
   removeProc();
 
-  acquire(&ptable.lock);
   // Parent might be sleeping in wait().
   wakeup1(curproc->parent);
 
@@ -393,51 +376,49 @@ scheduler(void)
   struct proc *p;
   struct cpu *c = mycpu();
   c->proc = 0;
-  
+  queueDump();
   for(;;){
     // Enable interrupts on this processor.
     sti();
 
-    // queueDump();
-    // procdump();
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
-
-    // NEW
-    // GRAB PID OFF OF TAIL
-    int runPID = peekProc();
-    runPID = runPID;
-
+    // while( ptable.tail->ticksUsed >= ptable.tail->timeslice)
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      // if(p->state != RUNNABLE){
-      if(p->state != RUNNABLE && p->pid != runPID){
+      if(p->state != RUNNABLE)
         continue;
+
+      // Switch to new process if timeslice exceeded
+      // TODO: Add in compensation accounting
+      if(p->ticksUsed >= p->timeslice){
+        // If compensation ticks avaible, use after time slice expires
+        if(p->compLeft > 0){
+          p->compLeft--;
+          p->compticks++;
+        // Otherwise, time slice is used up, move on to the next proc
+        // Remove the proc from the tail of the queue and add it pack to the
+        } else if (p == ptable.tail){
+          removeProc();
+          addProc(p);
+          p->ticksUsed = 0;
+          p->switches++;
+          continue;
+        }
       }
 
-      // if(p->ticksUsed == p->timeslice){
-      //   p->ticksUsed = 0;
-      //   removeProc();
-      //   addProc(p);
-      //   runPID = peekProc();
-      //   continue;
-      // }
 
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
       // before jumping back to us.
-
-      // remove the process here
-      // removeProc();
       c->proc = p;
       switchuvm(p);
-      p->state = RUNNING;
+      p->state = RUNNING;      
       
+      // NEW
       // cprintf("PID: %d\t", p->pid);
       // cprintf("Ticks used: %d\t", p->ticksUsed);
       // cprintf("Ticks slice: %d\n", p->timeslice);
 
-      // NEW
-      p->switches++;
       p->ticksUsed++;
       p->schedticks++;
       // NEW END
@@ -448,9 +429,6 @@ scheduler(void)
       // Process is done running for now.
       // It should have changed its p->state before coming back.
       c->proc = 0;
-
-      // add the current process back here
-      // addProc(p);
     }
     release(&ptable.lock);
 
@@ -481,7 +459,6 @@ sched(void)
   intena = mycpu()->intena;
   swtch(&p->context, mycpu()->scheduler);
   mycpu()->intena = intena;
-  // p->schedticks++;
 }
 
 // Give up the CPU for one scheduling round.
@@ -489,19 +466,8 @@ void
 yield(void)
 {
   acquire(&ptable.lock);  //DOC: yieldlock
+  updateticks();
   myproc()->state = RUNNABLE;
-
-  struct proc *p = myproc();
-  if(p->ticksUsed == p->timeslice){
-    p->ticksUsed = 0;
-    removeProc();
-    addProc(p);
-  } else {
-    // p->ticksUsed++;
-    // p->schedticks++;
-    // p->switches++;
-  }
-
   sched();
   release(&ptable.lock);
 }
@@ -553,11 +519,13 @@ sleep(void *chan, struct spinlock *lk)
   // Go to sleep.
   p->chan = chan;
   p->state = SLEEPING;
-  // remove the process here
-  removeProc();
 
-  // NEW!
+  // Reset compensation ticks
+  p->compLeft = 0;
   p->sleepticks++;
+  p->compLeft++;
+  // Remove proc from tail 
+  removeProc();
 
   sched();
 
@@ -577,8 +545,7 @@ sleep(void *chan, struct spinlock *lk)
 static void
 wakeup1(void *chan)
 {
-  
-  removeProc();
+  struct proc *p;
 
   // To address this problem, you should change wakeup1() 
   // in proc.c to have some additional 
@@ -586,19 +553,12 @@ wakeup1(void *chan)
   // (e.g. checking whether chan == &ticks, 
   // and whether it is the right time to wake up, etc).
 
-  struct proc *p = myproc();
-  // if(p->state == SLEEPING && p->chan == chan) {
-    // p->sleepticks++;
-  // } 
-
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-    if(p->state == SLEEPING && p->chan == chan){
+    if(p->state == SLEEPING && p->chan == chan) {
+      // addProc(p);
       p->state = RUNNABLE;
-      // add the process here
-      addProc(p);
     }
   }
-
 }
 
 // Wake up all processes sleeping on chan.
@@ -660,7 +620,7 @@ procdump(void)
       state = states[p->state];
     else
       state = "???";
-    cprintf("%d %s %s TIMESLICE=%d", p->pid, state, p->name, p->timeslice);
+    cprintf("%d %s %s", p->pid, state, p->name);
     if(p->state == SLEEPING){
       getcallerpcs((uint*)p->context->ebp+2, pc);
       for(i=0; i<10 && pc[i] != 0; i++)
@@ -670,9 +630,9 @@ procdump(void)
   }
 }
 
+// Get process info from all procs and return in mypstat
 int getpinfo(struct pstat *mypstat) {
 	struct proc *p;
-	// mypstat->inuse[i] = 0;
 
 	if(mypstat == NULL){
 		return -1;
@@ -702,6 +662,7 @@ int getpinfo(struct pstat *mypstat) {
 	return 0;
 }
 
+// Set time slice of process with PID
 int setslice(int pid, int slice){
 	struct proc *p;
 
@@ -720,6 +681,7 @@ int setslice(int pid, int slice){
   
 }
 
+// Return time slice of process with PID
 int getslice(int pid) {
   
 	struct proc *p;
@@ -752,9 +714,8 @@ int fork2(int slice){
   }
   np->sz = curproc->sz;
   np->parent = curproc;
+  np->timeslice = slice;  // NEW: Set np's timeslice to parent's
   *np->tf = *curproc->tf;
-
-  setslice(np->pid, slice); // Set timeslice of child to param
 
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0;
@@ -769,18 +730,14 @@ int fork2(int slice){
   pid = np->pid;
 
   acquire(&ptable.lock);
+
   np->state = RUNNABLE;
-  // NEW
-  // procdump();
-  // NEW END
-  release(&ptable.lock);
   
-  // Debug statements
-  // queueDump();
-  // procdump();
-  // cprintf("\n");
-  // forkcount++;
-  // cprintf("forks: %d\n", forkcount);
+  addProc(np);
+
+  queueDump();
+
+  release(&ptable.lock);
 
   return pid;
 }

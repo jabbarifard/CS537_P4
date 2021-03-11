@@ -13,12 +13,12 @@ schedtest(int sliceA, char * sleepA, int sliceB, char * sleepB, int sleepParent)
     int pid2, pid3;
 
     if((pid2 = fork2(sliceA)) == 0){
-        char *argv1[] = { "exec", sleepA };
+        char *argv1[] = { "exec", sleepA, NULL };
         exec("loop", argv1);
     }
     
     if((pid3 = fork2(sliceB)) == 0){
-        char *argv1[] = { "exec", sleepB };
+        char *argv1[] = { "exec", sleepB, NULL };
         exec("loop", argv1);
     }
 
@@ -28,6 +28,9 @@ schedtest(int sliceA, char * sleepA, int sliceB, char * sleepB, int sleepParent)
 
     struct pstat * test = malloc(sizeof(struct pstat));
     getpinfo(test);
+
+    wait();
+    wait();
 
     printf(1,"DUMPING PSTAT\n"); 
 
@@ -41,10 +44,7 @@ schedtest(int sliceA, char * sleepA, int sliceB, char * sleepB, int sleepParent)
             test->schedticks[i], test->sleepticks[i], test->switches[i]);
         }
     }
-
-    wait();
-    wait();
-
+    
     free(test);
 
 }
@@ -57,7 +57,6 @@ int main(int argc, char *argv[])
   }
 
   schedtest(atoi(argv[1]),(argv[2]),atoi(argv[3]),(argv[4]),atoi(argv[5]));
-
 
   exit();
 }

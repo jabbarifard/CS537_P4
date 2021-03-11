@@ -9,9 +9,8 @@ loop(int sleepT)
   sleep(sleepT);
 
   int i = 0, j = 0;
-  while (i < 8000000000) {
+  while (i < 800000000) {
     j += i * j + 1;
-    j += j * j + 1;
     i++;
   }
 }
