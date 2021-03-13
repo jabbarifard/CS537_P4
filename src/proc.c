@@ -21,8 +21,13 @@ struct {
 
 void addProc(struct proc *p){
   // Add proc p to head
-  p->next = ptable.head;
-  ptable.head = p;
+  if( p == ptable.head){
+    // Only 1 process
+  } else if ( p != NULL){
+    // cprintf("adding proc: %d\n", p->pid);
+    p->next = ptable.head;
+    ptable.head = p;
+  }
 
   // If empty, tail points to the same proc as head
   if(ptable.tail == NULL){
@@ -31,22 +36,36 @@ void addProc(struct proc *p){
 }
 
 void removeProc(void){
-  struct proc *curr = ptable.head;
-  struct proc *prev = curr;
-  if(prev == NULL){
-    // Already empty, do nothing
-  } else if(prev->next == NULL){
-    ptable.head = NULL;
-    ptable.tail = NULL;
+  
+
+  if(ptable.head->pid == ptable.tail->pid){
+    // There is only 1 process scheduled
+    // Keep at head and tail
   } else {
-    // Find last node
-    while(prev->next->next != NULL) {
-      prev = prev->next;
+
+    // cprintf("removing proc: %d\n", ptable.tail->pid);
+
+    struct proc *curr = ptable.head;
+    struct proc *prev = curr;
+    if(prev == NULL){
+      // Already empty, do nothing
+    } else if(prev->next == NULL){
+      ptable.head = prev;
+      ptable.tail = prev;
+    } else {
+      // Find last node
+      while(curr->next != NULL) {
+        prev = curr;
+        curr = curr->next;
+      }
+      // Remove last node and update tail
+      prev->next = NULL;
+      ptable.tail = prev;
     }
-    // Remove last node and update tail
-    prev->next = NULL;
-    ptable.tail = prev;
+
   }
+
+  
 }
 
 void queueDump(void){
@@ -230,7 +249,6 @@ userinit(void)
   acquire(&ptable.lock);
 
   p->state = RUNNABLE;
-
   // Add userinit to linked list
   addProc(p);
 
@@ -296,7 +314,7 @@ exit(void)
   curproc->cwd = 0;
 
   acquire(&ptable.lock);
-
+  
   // Remove current proc from queue
   removeProc();
 
@@ -376,7 +394,7 @@ scheduler(void)
   struct proc *p;
   struct cpu *c = mycpu();
   c->proc = 0;
-  queueDump();
+  // queueDump();
   for(;;){
     // Enable interrupts on this processor.
     sti();
@@ -384,52 +402,59 @@ scheduler(void)
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
     // while( ptable.tail->ticksUsed >= ptable.tail->timeslice)
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->state != RUNNABLE)
-        continue;
-
-      // Switch to new process if timeslice exceeded
-      // TODO: Add in compensation accounting
-      if(p->ticksUsed >= p->timeslice){
-        // If compensation ticks avaible, use after time slice expires
-        if(p->compLeft > 0){
-          p->compLeft--;
-          p->compticks++;
-        // Otherwise, time slice is used up, move on to the next proc
-        // Remove the proc from the tail of the queue and add it pack to the
-        } else if (p == ptable.tail){
-          removeProc();
-          addProc(p);
-          p->ticksUsed = 0;
-          p->switches++;
-          continue;
-        }
-      }
-
-
-      // Switch to chosen process.  It is the process's job
-      // to release ptable.lock and then reacquire it
-      // before jumping back to us.
-      c->proc = p;
-      switchuvm(p);
-      p->state = RUNNING;      
-      
-      // NEW
-      // cprintf("PID: %d\t", p->pid);
-      // cprintf("Ticks used: %d\t", p->ticksUsed);
-      // cprintf("Ticks slice: %d\n", p->timeslice);
-
-      p->ticksUsed++;
-      p->schedticks++;
-      // NEW END
-
-      swtch(&(c->scheduler), p->context);
-      switchkvm();
-
-      // Process is done running for now.
-      // It should have changed its p->state before coming back.
-      c->proc = 0;
+    // for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    //   if(p->state != RUNNABLE)
+    //     continue;
+    if(ptable.tail->state == ZOMBIE){      
+      removeProc();
     }
+
+    if(ptable.tail != NULL){
+      // cprintf ( " tail is null \n");
+    }
+    
+    p = ptable.tail;
+    // Switch to new process if timeslice exceeded
+    // TODO: Add in compensation accounting
+    while(p->ticksUsed >= p->timeslice){
+      // If compensation ticks avaible, use after time slice expires
+      if(p->compLeft > 0){
+        p->compLeft--;
+        p->compticks++;
+      // Otherwise, time slice is used up, move on to the next proc
+      // Remove the proc from the tail of the queue and add it pack to the
+      } else if (p == ptable.tail){
+        removeProc();
+        p->ticksUsed = 0;
+        p->switches++;
+        addProc(p);
+      }
+    }
+    p = ptable.tail;
+
+    // Switch to chosen process.  It is the process's job
+    // to release ptable.lock and then reacquire it
+    // before jumping back to us.
+    c->proc = p;
+    switchuvm(p);
+    p->state = RUNNING;      
+    
+    // NEW
+    // cprintf("PID: %d\t", p->pid);
+    // cprintf("Ticks used: %d\t", p->ticksUsed);
+    // cprintf("Ticks slice: %d\n", p->timeslice);
+
+    p->ticksUsed++;
+    p->schedticks++;
+    // NEW END
+
+    swtch(&(c->scheduler), p->context);
+    switchkvm();
+
+    // Process is done running for now.
+    // It should have changed its p->state before coming back.
+    c->proc = 0;
+    
     release(&ptable.lock);
 
   }
@@ -559,8 +584,8 @@ wakeup1(void *chan)
       if(chan == &ticks){
         if(p->wakeupIn == 0){
           // Time is up, wake up
-          p->state = RUNNABLE;
           addProc(p);
+          p->state = RUNNABLE;
         } else {
           // Time is not up yet, do not wake up
           p->wakeupIn--;
@@ -568,6 +593,7 @@ wakeup1(void *chan)
           p->compLeft++;
         }
       } else {
+        addProc(p);
         p->state = RUNNABLE;
         // DO NOT WAKE UP
       }
@@ -760,9 +786,7 @@ int fork2(int slice){
   acquire(&ptable.lock);
 
   np->state = RUNNABLE;
-  
   addProc(np);
-
   // queueDump();
 
   release(&ptable.lock);
