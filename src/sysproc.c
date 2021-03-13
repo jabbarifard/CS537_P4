@@ -108,7 +108,7 @@ sys_setslice(void)
 
 int 
 sys_getslice(void)
-{
+{ 
   int pid;
   if(argint(0, &pid) < 0) {
     return -1;

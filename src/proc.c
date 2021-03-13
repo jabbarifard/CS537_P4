@@ -264,7 +264,7 @@ growproc(int n)
 int
 fork(void)
 {
-  // Call fork2, but with current timeslice
+  // Call fork2, but set to parent's timeslice
   struct proc *curproc = myproc();
   return fork2(curproc->timeslice);
 }
@@ -680,10 +680,11 @@ int getpinfo(struct pstat *mypstat) {
 int setslice(int pid, int slice){
 	struct proc *p;
 
-	if(pid <= 0){
+	if(pid <= 0 || slice <= 0){
 		return -1;
 	}
 
+  acquire(&ptable.lock);
 	for(p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
     if(p->pid == pid){
       p->timeslice = slice;
@@ -691,20 +692,33 @@ int setslice(int pid, int slice){
     }
 	}
 
+  release(&ptable.lock);
   return 0;
   
 }
 
 // Return time slice of process with PID
 int getslice(int pid) {
+
+  if(pid <= 0) {
+    return -1;
+  }
   
 	struct proc *p;
+  int slice;
+  acquire(&ptable.lock);
   for(p= ptable.proc; p < &ptable.proc[NPROC]; p++) {
     if(p->pid == pid){
-        return(p->timeslice);
+        slice = p->timeslice;
+        release(&ptable.lock);
+        if(slice < 0){
+          return -1;
+        }
+        return slice;
     }	
-	}
+	}  
 
+  release(&ptable.lock);
 	return -1;
 
 }
@@ -728,7 +742,7 @@ int fork2(int slice){
   }
   np->sz = curproc->sz;
   np->parent = curproc;
-  np->timeslice = slice;  // NEW: Set np's timeslice to parent's
+  np->timeslice = slice;  // NEW: Set np's timeslice to slice
   *np->tf = *curproc->tf;
 
   // Clear %eax so that fork returns 0 in the child.
@@ -749,7 +763,7 @@ int fork2(int slice){
   
   addProc(np);
 
-  queueDump();
+  // queueDump();
 
   release(&ptable.lock);
 
