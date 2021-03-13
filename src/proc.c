@@ -522,8 +522,7 @@ sleep(void *chan, struct spinlock *lk)
 
   // Reset compensation ticks
   p->compLeft = 0;
-  p->sleepticks++;
-  p->compLeft++;
+
   // Remove proc from tail 
   removeProc();
 
@@ -555,8 +554,23 @@ wakeup1(void *chan)
 
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if(p->state == SLEEPING && p->chan == chan) {
-      // addProc(p);
-      p->state = RUNNABLE;
+
+      // Check if timer interrupt was called
+      if(chan == &ticks){
+        if(p->wakeupIn == 0){
+          // Time is up, wake up
+          p->state = RUNNABLE;
+          addProc(p);
+        } else {
+          // Time is not up yet, do not wake up
+          p->wakeupIn--;
+          p->sleepticks++;
+          p->compLeft++;
+        }
+      } else {
+        p->state = RUNNABLE;
+        // DO NOT WAKE UP
+      }
     }
   }
 }

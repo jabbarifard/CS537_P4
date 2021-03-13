@@ -66,6 +66,10 @@ sys_sleep(void)
     return -1;
   acquire(&tickslock);
   ticks0 = ticks;
+
+  // add sleep counter in myproc();
+  myproc()->wakeupIn = n;
+
   while(ticks - ticks0 < n){
     if(myproc()->killed){
       release(&tickslock);
