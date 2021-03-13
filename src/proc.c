@@ -33,6 +33,7 @@ void addProc(struct proc *p){
 void removeProc(void){
   struct proc *curr = ptable.head;
   struct proc *prev = curr;
+  cprintf("RemoveProc- Process: %s , PID: %d NextPID: %d\n", curr->name, curr->pid, curr->next->pid);
   if(prev == NULL){
     // Already empty, do nothing
   } else if(prev->next == NULL){
@@ -46,8 +47,36 @@ void removeProc(void){
     // Remove last node and update tail
     prev->next = NULL;
     ptable.tail = prev;
+
   }
 }
+
+void removeH(void){
+	 struct proc *curr = ptable.head;
+	 if(curr->next == curr){
+		 ptable.head = NULL;
+		 curr->next = NULL;
+		 return;
+	 } 
+	 ptable.head = curr->next;
+	 curr = NULL;
+}
+void addT(struct proc *p){
+	//struct proc *curr = ptable.head;
+	if(ptable.head == NULL){
+		ptable.head = p;
+		ptable.tail = p;
+		p->next = NULL;
+		return;
+	}
+	ptable.tail->next = p;
+	ptable.tail = p;
+	p->next = NULL;
+}
+
+
+
+
 
 void queueDump(void){
   struct proc *curr = ptable.head;
@@ -384,9 +413,12 @@ scheduler(void)
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
     // while( ptable.tail->ticksUsed >= ptable.tail->timeslice)
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    //for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      p = ptable.head;
       if(p->state != RUNNABLE)
         continue;
+        
+      cprintf("Scheduler - Process: %s , PID: %d\n", p->name, p->pid);
 
       // Switch to new process if timeslice exceeded
       // TODO: Add in compensation accounting
@@ -397,9 +429,12 @@ scheduler(void)
           p->compticks++;
         // Otherwise, time slice is used up, move on to the next proc
         // Remove the proc from the tail of the queue and add it pack to the
-        } else if (p == ptable.tail){
-          removeProc();
-          addProc(p);
+        //} else if (p == ptable.tail){
+        } else{
+          //removeProc();
+	  removeH();
+          //addProc(p);
+	  addT(p);
           p->ticksUsed = 0;
           p->switches++;
           continue;
@@ -429,7 +464,7 @@ scheduler(void)
       // Process is done running for now.
       // It should have changed its p->state before coming back.
       c->proc = 0;
-    }
+    //}
     release(&ptable.lock);
 
   }

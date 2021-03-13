@@ -182,7 +182,8 @@ UPROGS=\
 	_wc\
 	_zombie\
 	_loop\
-	_schedtest
+	_schedtest\
+	_test_7
 
 fs.img: mkfs README $(UPROGS)
 	./mkfs fs.img README $(UPROGS)
