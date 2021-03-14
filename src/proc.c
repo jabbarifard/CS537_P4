@@ -26,6 +26,7 @@ void addProc(struct proc *p){
   } else if ( p != NULL){
     // cprintf("adding proc: %d\n", p->pid);
     p->next = ptable.head;
+    p->state = RUNNABLE;
     ptable.head = p;
   }
 
@@ -37,14 +38,11 @@ void addProc(struct proc *p){
 
 void removeProc(void){
   
-
   if(ptable.head->pid == ptable.tail->pid){
     // There is only 1 process scheduled
     // Keep at head and tail
   } else {
-
     // cprintf("removing proc: %d\n", ptable.tail->pid);
-
     struct proc *curr = ptable.head;
     struct proc *prev = curr;
     if(prev == NULL){
@@ -53,19 +51,41 @@ void removeProc(void){
       ptable.head = prev;
       ptable.tail = prev;
     } else {
-      // Find last node
-      while(curr->next != NULL) {
-        prev = curr;
-        curr = curr->next;
+      // Find second to last node
+      while(prev->next->next != NULL) {
+        prev = prev->next;
       }
       // Remove last node and update tail
       prev->next = NULL;
       ptable.tail = prev;
     }
-
   }
 
-  
+}
+
+void moveToBack(){
+
+  if(ptable.head->pid == ptable.tail->pid){
+    // There is only 1 process scheduled
+    // Nothing is nessessary
+  } else {
+    struct proc *curr = ptable.head;
+    struct proc *prev = curr;
+
+    // Find second to last node
+    while(prev->next->next != NULL) {
+      prev = prev->next;
+    }
+    // Remove last node 
+    curr = prev->next;
+    prev->next = NULL;
+    ptable.tail = prev;
+
+    // Put removed node at head
+    curr->next = ptable.head;
+    ptable.head = curr;
+  }
+
 }
 
 void queueDump(void){
@@ -409,28 +429,36 @@ scheduler(void)
       removeProc();
     }
 
-    if(ptable.tail != NULL){
+    if(ptable.tail == NULL){
       // cprintf ( " tail is null \n");
     }
     
     p = ptable.tail;
+    int comp = 0;
     // Switch to new process if timeslice exceeded
     // TODO: Add in compensation accounting
-    while(p->ticksUsed >= p->timeslice){
-      // If compensation ticks avaible, use after time slice expires
-      if(p->compLeft > 0){
+
+    // If compensation ticks avaible, use after time slice expires
+    if(p->compLeft > 0 && p->ticksUsed >= p->timeslice){
         p->compLeft--;
         p->compticks++;
-      // Otherwise, time slice is used up, move on to the next proc
-      // Remove the proc from the tail of the queue and add it pack to the
-      } else if (p == ptable.tail){
-        removeProc();
+        comp = 1;
+    }
+
+    while(p->ticksUsed >= p->timeslice && comp == 0){
+      if (ptable.head == ptable.tail) {
         p->ticksUsed = 0;
         p->switches++;
-        addProc(p);
-      }
+      } else {
+        moveToBack();
+        p->ticksUsed = 0;
+        p->switches++;
+      } 
+      p = ptable.tail;
     }
-    p = ptable.tail;
+
+    p->ticksUsed++; 
+    p->schedticks++;
 
     // Switch to chosen process.  It is the process's job
     // to release ptable.lock and then reacquire it
@@ -444,8 +472,6 @@ scheduler(void)
     // cprintf("Ticks used: %d\t", p->ticksUsed);
     // cprintf("Ticks slice: %d\n", p->timeslice);
 
-    p->ticksUsed++;
-    p->schedticks++;
     // NEW END
 
     swtch(&(c->scheduler), p->context);
@@ -549,7 +575,9 @@ sleep(void *chan, struct spinlock *lk)
   p->compLeft = 0;
 
   // Remove proc from tail 
-  removeProc();
+  if(ptable.tail == p){
+    removeProc();
+  }
 
   sched();
 
