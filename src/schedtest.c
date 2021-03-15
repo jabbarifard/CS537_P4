@@ -32,10 +32,10 @@ schedtest(int sliceA, char * sleepA, int sliceB, char * sleepB, int sleepParent)
     wait();
     wait();
 
-    // printf(1,"DUMPING PSTAT\n"); 
 
     int i;
     
+    // printf(1,"DUMPING PSTAT\n"); 
     // for (i = 0; i < NPROC; i++){
         
     //     if(test->inuse[i] == 1){
