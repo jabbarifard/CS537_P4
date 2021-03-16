@@ -39,6 +39,8 @@ void addProc(struct proc *p){
 void removeProc(void){
   
   if(ptable.head->pid == ptable.tail->pid){
+	  ptable.tail = NULL;// means queue is empty
+	  ptable.head = NULL;
     // There is only 1 process scheduled
     // Keep at head and tail
   } else {
@@ -46,6 +48,7 @@ void removeProc(void){
     struct proc *curr = ptable.head;
     struct proc *prev = curr;
     if(prev == NULL){
+
       // Already empty, do nothing
     } else if(prev->next == NULL){
       ptable.head = prev;
@@ -425,19 +428,21 @@ scheduler(void)
     // for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     //   if(p->state != RUNNABLE)
     //     continue;
-    if(ptable.tail->state == ZOMBIE){      
-      removeProc();
+    if(ptable.tail == NULL){//if queue is completely empty continue
+	    release(&ptable.lock);
+	    continue;
+      // cprintf ( " tail is null \n");
     }
 
-    if(ptable.tail == NULL){
-      // cprintf ( " tail is null \n");
+    if(ptable.tail->state == ZOMBIE){      
+      removeProc();
     }
     
     p = ptable.tail;
     int comp = 0;
     // Switch to new process if timeslice exceeded
     // TODO: Add in compensation accounting
-
+ 
     // If compensation ticks avaible, use after time slice expires
     if(p->compLeft > 0 && p->ticksUsed >= p->timeslice){
         p->compLeft--;

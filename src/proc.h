@@ -63,7 +63,6 @@ struct proc {
   int ticksUsed;               // ticksUsed this schedule
   int compLeft;                // compensation ticks this process has left
   int wakeupIn;                // ticks to wakeup in
-  
 };
 
 // Process memory is laid out contiguously, low addresses first:
